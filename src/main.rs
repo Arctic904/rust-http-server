@@ -1,6 +1,9 @@
 use std::{
+    env,
+    fs::File,
     io::{BufRead, BufReader, Error, Read, Write},
     net::TcpListener,
+    str::from_utf8,
     thread, vec,
 };
 
@@ -30,11 +33,17 @@ fn main() {
     // You can use print statements as follows for debugging, they'll be visible when running tests.
     println!("Logs from your program will appear here!");
 
+    let dir: String = env::args()
+        .skip_while(|arg| arg != "--directory")
+        .next_tuple()
+        .map_or(String::from("."), |(_, value)| value);
+
     // Uncomment this block to pass the first stage
     //
     let listener = TcpListener::bind("127.0.0.1:4221").unwrap();
 
     for stream in listener.incoming() {
+        let dir_path = dir.clone();
         thread::spawn(move || match stream {
             Ok(mut stream) => {
                 let reader = BufReader::new(&mut stream);
@@ -73,6 +82,22 @@ fn main() {
                         )
                         .as_bytes(),
                     )
+                } else if path.starts_with("/files/") {
+                    let path_to_file = path.split_at("/files/".len()).1;
+                    let fp = dir_path + path_to_file;
+                    let file: Result<File, Error> = File::open(fp);
+                    let res;
+                    match file {
+                        Ok(mut file) => {
+                            let mut buf: Vec<u8> = Vec::new();
+                            file.read_to_end(&mut buf);
+                            let content = from_utf8(&buf).unwrap();
+                            res =
+                                gen_response(200, "OK", Some((content, "application/octet-stream")))
+                        }
+                        Err(_) => res = gen_response(404, "Not Found", None),
+                    }
+                    stream.write(res.as_bytes())
                 } else if path == &"/" {
                     stream.write(gen_response(200, "OK", None).as_bytes())
                 } else {
