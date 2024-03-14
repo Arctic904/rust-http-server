@@ -1,7 +1,7 @@
 use std::{
     io::{BufRead, BufReader, Error, Read, Write},
     net::TcpListener,
-    vec,
+    thread, vec,
 };
 
 use itertools::Itertools;
@@ -35,7 +35,7 @@ fn main() {
     let listener = TcpListener::bind("127.0.0.1:4221").unwrap();
 
     for stream in listener.incoming() {
-        match stream {
+        thread::spawn(move || match stream {
             Ok(mut stream) => {
                 let reader = BufReader::new(&mut stream);
                 let line_reader = reader.lines();
@@ -91,7 +91,7 @@ fn main() {
             Err(e) => {
                 println!("error: {}", e);
             }
-        }
+        });
     }
 }
 
