@@ -55,6 +55,11 @@ fn main() {
                 let written = if path.starts_with("/echo/") {
                     let content = path.split_at("/echo/".len()).1;
                     stream.write(gen_response(200, "OK", Some((content, "text/plain"))).as_bytes())
+                } else if path.starts_with("/user-agent") {
+                    stream.write(
+                        gen_response(200, "OK", Some((&request.headers.agent, "text/plain")))
+                            .as_bytes(),
+                    )
                 } else if path == &"/" {
                     stream.write(gen_response(200, "OK", None).as_bytes())
                 } else {
