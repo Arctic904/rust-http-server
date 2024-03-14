@@ -1,9 +1,13 @@
-// Uncomment this block to pass the first stage
 use std::{
-    io::{Read, Write},
+    io::{BufRead, BufReader, Error, Read, Write},
     net::TcpListener,
+    vec,
 };
 
+use itertools::Itertools;
+use nom::InputIter;
+
+/// Represents an HTTP request.
 struct Request {
     method: String,
     path: String,
@@ -12,13 +16,15 @@ struct Request {
     body: Option<String>,
 }
 
+/// Represents the headers of an HTTP request.
 struct Headers {
     host: String,
     agent: String,
     others: Option<String>,
 }
 
-const ACCEPTABLE_PATHS: [&str; 1] = ["/"];
+/// List of acceptable paths for the HTTP server.
+const ACCEPTABLE_PATHS: [&str; 2] = ["/", "/echo"];
 
 fn main() {
     // You can use print statements as follows for debugging, they'll be visible when running tests.
@@ -31,31 +37,28 @@ fn main() {
     for stream in listener.incoming() {
         match stream {
             Ok(mut stream) => {
-                println!("accepted new connection");
-                let mut input: [u8; 1024] = [0; 1024];
-                let read = stream.read(&mut input);
-                match read {
-                    Ok(n) => {
-                        println!("read {} bytes", n);
-                    }
-                    Err(e) => {
-                        println!("error: {}", e);
+                let reader = BufReader::new(&mut stream);
+                let line_reader = reader.lines();
+                let mut input = String::new();
+                for line in line_reader {
+                    input = input.to_owned() + &line.as_ref().unwrap() + "\r\n";
+                    if line.unwrap().as_bytes().is_empty() {
+                        break;
                     }
                 }
-                let input_utf8 = String::from_utf8(input.to_vec());
-                let input_str = match input_utf8 {
-                    Ok(s) => s,
-                    Err(e) => {
-                        println!("error: {}", e);
-                        continue;
-                    }
-                };
-                let request = parse_request(input_str);
+                println!("{}", input);
+                let request = parse_request(input);
+                let path = &request.path.as_str();
 
-                let written = if ACCEPTABLE_PATHS.contains(&request.path.as_str()) {
-                    stream.write(b"HTTP/1.1 200 OK\r\n\r\n".as_ref())
+                println!("{}", path);
+
+                let written = if path.starts_with("/echo/") {
+                    let content = path.split_at("/echo/".len()).1;
+                    stream.write(gen_response(200, "OK", Some((content, "text/plain"))).as_bytes())
+                } else if path == &"/" {
+                    stream.write(gen_response(200, "OK", None).as_bytes())
                 } else {
-                    stream.write(b"HTTP/1.1 404 Not Found\r\n\r\n".as_ref())
+                    stream.write(gen_response(404, "Not Found", None).as_bytes())
                 };
 
                 match written {
@@ -74,6 +77,7 @@ fn main() {
     }
 }
 
+/// Parses an HTTP request string and returns a `Request` struct.
 fn parse_request(req: String) -> Request {
     let mut req = req.clone();
     let rest: String = req.split_off(req.find("\r\n").unwrap_or(req.len()));
@@ -87,7 +91,6 @@ fn parse_request(req: String) -> Request {
         version = inputs[2].to_string();
     }
     let mut headers = rest.split("\r\n");
-    // let headers: Vec<&str> = headers.collect();
 
     let headers = Headers {
         host: headers
@@ -107,4 +110,26 @@ fn parse_request(req: String) -> Request {
         headers,
         body: None,
     }
+}
+
+/// Generates an HTTP response.
+///
+/// * `status` - HTTP Status Code
+/// * `status_msg` - HTTP Message
+/// * `content` - Optional (content, content_type)
+///
+fn gen_response(status: i16, status_msg: &str, content: Option<(&str, &str)>) -> String {
+    let mut response = format!("HTTP/1.1 {} {}", status, status_msg);
+    if let Some(content) = content {
+        response += format!(
+            "\r\nContent-Type: {}\r\nContent-Length: {}\r\n\r\n{}",
+            content.1,
+            content.0.len(),
+            content.0
+        )
+        .as_str();
+    } else {
+        response += "\r\n\r\n"
+    }
+    response
 }
