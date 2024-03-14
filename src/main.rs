@@ -66,7 +66,7 @@ fn main() {
                                     .headers
                                     .agent
                                     .clone()
-                                    .split_at(request.headers.agent.find(": ").unwrap() + 1)
+                                    .split_at(request.headers.agent.find(": ").unwrap() + 2)
                                     .1,
                                 "text/plain",
                             )),
