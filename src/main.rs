@@ -149,5 +149,6 @@ fn gen_response(status: i16, status_msg: &str, content: Option<(&str, &str)>) ->
     } else {
         response += "\r\n\r\n"
     }
+    println!("{}", response);
     response
 }
