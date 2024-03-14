@@ -114,7 +114,9 @@ fn main() {
                     written = if request.path.starts_with("/files/") {
                         let mut fileparts: Vec<&str> = request.path.split('/').collect_vec();
                         let file_name = fileparts.pop().unwrap();
-                        let no_files = fileparts.split_first().unwrap().1;
+                        println!("{:?}", fileparts);
+                        let no_files: Vec<&str> = fileparts.split_off(2);
+                        println!("{:?}", no_files);
                         let temp_path = dir_path + "/" + &no_files.join("/");
                         let dir_made = fs::create_dir_all(&temp_path);
                         match dir_made {
